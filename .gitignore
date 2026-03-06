@@ -1,0 +1,5 @@
+# Firebase credentials
+*.json
+credentials/
+# or specifically:
+screen2green-*-firebase-adminsdk-*.json

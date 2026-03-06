@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # MySQL Database Service
+  db:
+    image: mysql:8.0
+    container_name: screen_2_green_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-screen2green}
+      MYSQL_USER: ${MYSQL_USER:-admin-screen2green}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-screenpass123}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/alembic/versions:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER:-screenuser}", "-p${MYSQL_PASSWORD:-screenpass123}"]
+      timeout: 20s
+      retries: 10
+    networks:
+      - app_network
+
+  # FastAPI Backend Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: screen_to_green_fastapi
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-admin-screen2green}:${MYSQL_PASSWORD:-screenpass123}@db:3306/${MYSQL_DATABASE:-screen2green}
+      MYSQL_HOST: db
+      MYSQL_USER: ${MYSQL_USER:-admin-screen2green}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-screenpass123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-screen2green}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      # Path inside container (file is mounted at /app/firebase_credentials.json)
+      FIREBASE_CREDENTIALS: /app/firebase_credentials.json
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-screen2green-tuankietbuv}
+      TENSORFLOW_MODEL_PATH: /app/models/screen_usage_model.tflite
+    ports:
+      - "${FASTAPI_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./models:/app/models
+      - ${FIREBASE_CREDENTIALS:-./screen2green-tuankietbuv-firebase-adminsdk-fbsvc-af53272395.json}:/app/firebase_credentials.json:ro
+    networks:
+      - app_network
+    working_dir: /app/backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Optional: Redis for caching (recommended for production)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: screen_usage_redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - app_network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
