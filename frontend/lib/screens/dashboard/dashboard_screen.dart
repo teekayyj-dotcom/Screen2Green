@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+// Import Providers và Models
+import '../../providers/auth_provider.dart';
+import '../../providers/screen_provider.dart';
+import '../../models/screen_time_model.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -8,91 +14,178 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedIndex = 0; // Lưu trạng thái tab đang được chọn
+  final Color _backgroundColor = const Color(0xFF191A1F);
+  final Color _cardColor = const Color(0xFF25262E);
+  final Color _primaryGreen = const Color(0xFF57B869);
+  bool _requestedInitialStats = false;
 
-  // Bảng màu chuẩn theo yêu cầu của bạn
-  final Color _bgColor = const Color(0xFFF6F6F6);
-  final Color _activeIconColor = const Color(0xFF01B764);
-  final Color _redColor = const Color(0xFFF44336);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _requestedInitialStats) {
+        return;
+      }
+
+      _requestedInitialStats = true;
+      context.read<ScreenProvider>().fetchAndSyncStats();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Lắng nghe ScreenProvider để cập nhật UI khi có data mới
+    final screenProvider = context.watch<ScreenProvider>();
+    final stats = screenProvider.stats;
+
     return Scaffold(
-      backgroundColor: _bgColor,
-      body: Stack(
-        children: [
-          // 1. LỚP NỀN (BACKGROUND GRADIENT TỪ TRÊN XUỐNG)
-          Container(
-            height: MediaQuery.of(context).size.height * 0.45,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF57B869), // Xanh lá
-                  Color(0xFF329D9C), // Xanh teal
-                  Color(0xFF2081C3), // Xanh dương
-                ],
-              ),
+      backgroundColor: _backgroundColor,
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: _primaryGreen,
+          backgroundColor: _cardColor,
+          // Kéo màn hình xuống để làm mới dữ liệu
+          onRefresh: () async {
+            await context
+                .read<ScreenProvider>()
+                .fetchAndSyncStats(forceRefresh: true);
+          },
+          child: SingleChildScrollView(
+            physics:
+                const AlwaysScrollableScrollPhysics(), // Đảm bảo luôn cuộn được để pull-to-refresh
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 30),
+
+                // HIỂN THỊ TRẠNG THÁI LOADING, ERROR HOẶC DATA
+                if (screenProvider.isLoading && stats == null)
+                  SizedBox(
+                    height: 300,
+                    child: Center(
+                        child: CircularProgressIndicator(color: _primaryGreen)),
+                  )
+                else if (screenProvider.errorMessage != null)
+                  _buildErrorState(screenProvider.errorMessage!)
+                else if (stats != null)
+                  _buildDashboardContent(stats),
+              ],
             ),
           ),
-
-          // 2. NỘI DUNG CUỘN (DASHBOARD CONTENT)
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(
-                  left: 20, right: 20, top: 20, bottom: 100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-                  _buildAlertCard(),
-                  const SizedBox(height: 24),
-                  _buildChartCard(),
-                  const SizedBox(height: 24),
-                  _buildStatsGrid(),
-                ],
-              ),
-            ),
-          ),
-
-          // 3. THANH ĐIỀU HƯỚNG TÙY CHỈNH (CUSTOM BOTTOM NAV BAR)
-          Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: _buildCustomBottomNavBar(),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  // --- CÁC THÀNH PHẦN GIAO DIỆN CHÍNH ---
-
+  // =========================================================
+  // 1. PHẦN HEADER CÓ AVATAR DROPDOWN MENU
+  // =========================================================
   Widget _buildHeader() {
+    // Lấy tên hiển thị từ Firebase (Nếu null thì để 'User')
+    final authProvider = context.read<AuthProvider>();
+    final String displayName = authProvider.user?.displayName ?? 'User';
+    final String firstName =
+        displayName.split(' ').first; // Chỉ lấy tên gọi cho thân mật
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
-          'Hello Rocky,',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hello $firstName,',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
+        const SizedBox(height: 20),
         Row(
           children: [
             CircleAvatar(
-              backgroundColor: Colors.white.withOpacity(0.8),
-              child: Icon(Icons.notifications_none, color: Colors.grey[600]),
+              backgroundColor: _cardColor,
+              child:
+                  const Icon(Icons.notifications_none, color: Colors.white70),
             ),
             const SizedBox(width: 12),
-            CircleAvatar(
-              backgroundColor: Colors.white.withOpacity(0.8),
-              child: Icon(Icons.person, color: Colors.grey[600]),
+
+            // MENU DROPDOWN NHƯ BẠN YÊU CẦU
+            Theme(
+              data: Theme.of(context).copyWith(
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+              ),
+              child: PopupMenuButton<String>(
+                offset: const Offset(0, 50),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                color: _cardColor,
+                elevation: 4,
+                child: CircleAvatar(
+                  backgroundColor: _primaryGreen.withValues(alpha: 0.2),
+                  child: Icon(Icons.person, color: _primaryGreen),
+                ),
+                onSelected: (String value) async {
+                  switch (value) {
+                    case 'profile':
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Sắp ra mắt Edit Profile!')));
+                      break;
+                    case 'greenpoints':
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Sắp ra mắt Chi tiết GreenPoints!')));
+                      break;
+                    case 'signout':
+                      await context.read<AuthProvider>().signOut();
+                      break;
+                  }
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        Icon(Icons.manage_accounts_outlined,
+                            color: Colors.white70),
+                        SizedBox(width: 12),
+                        Text('Edit Profile',
+                            style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'greenpoints',
+                    child: Row(
+                      children: [
+                        Icon(Icons.eco_outlined, color: _primaryGreen),
+                        const SizedBox(width: 12),
+                        const Text('GreenPoints',
+                            style: TextStyle(color: Colors.white)),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<String>(
+                    value: 'signout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, color: Colors.redAccent),
+                        SizedBox(width: 12),
+                        Text('Sign Out',
+                            style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         )
@@ -100,347 +193,181 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildAlertCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'High afternoon usage detected',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'You spend more than 4 hours after 5:30pm. Do more exercises!',
-                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF57B869),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-            child: const Text('Set Reminder',
-                style: TextStyle(color: Colors.white)),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChartCard() {
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF35363D), // Màu tối như thiết kế
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Today\'s Usage',
-              style: TextStyle(color: Colors.white, fontSize: 16)),
-          const Spacer(),
-          // Bắt chước biểu đồ vạch sáng bằng CustomPaint đơn giản
-          SizedBox(
-            height: 80,
-            width: double.infinity,
-            child: CustomPaint(painter: _MockChartPainter()),
-          ),
-          const Spacer(),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('0 AM',
-                  style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Text('6 AM',
-                  style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Text('12 PM',
-                  style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Text('6 PM',
-                  style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Text('Now',
-                  style: TextStyle(color: Colors.white70, fontSize: 12)),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsGrid() {
+  // =========================================================
+  // 2. PHẦN NỘI DUNG CHÍNH (KHI ĐÃ CÓ DATA)
+  // =========================================================
+  Widget _buildDashboardContent(DashboardStatsModel stats) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // --- THẺ TỔNG THỜI GIAN SỬ DỤNG ---
+        _buildScreenTimeCard(
+          title: 'Total Screen Time',
+          hours: stats.totalHours,
+          progress: stats.hoursProgress,
+          icon: Icons.smartphone,
+          color: Colors.blueAccent,
+        ),
+        const SizedBox(height: 16),
+
+        // --- THẺ BLACKLIST (MÔ HÌNH HYBRID MỚI) ---
+        _buildScreenTimeCard(
+          title: 'Distracting Apps (Blacklist)',
+          hours: stats.blacklistHours,
+          progress: stats.blacklistProgress,
+          icon: Icons.block,
+          color: Colors.redAccent,
+        ),
+        const SizedBox(height: 24),
+
+        const Text('Your Environmental Impact',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+
+        // --- HÀNG CÁC CHỈ SỐ GAMIFICATION ---
         Row(
           children: [
             Expanded(
-              child: _buildStatCard(
-                title: 'Hours',
-                endValue: 8,
-                subtitle: 'Total screen time',
-                progressText: '130% Max',
-                progressValue: 1.0,
-                color: _redColor,
-              ),
-            ),
+                child: _buildImpactCard('Trees', stats.totalTrees.toString(),
+                    Icons.park, _primaryGreen)),
             const SizedBox(width: 16),
             Expanded(
-              child: _buildStatCard(
-                title: 'Trees',
-                endValue: 12,
-                subtitle: 'Total tree planted',
-                progressText: '+3 this month',
-                progressValue: 0,
-                color: _activeIconColor,
-                isTextBottom: true,
-              ),
-            ),
+                child: _buildImpactCard(
+                    'CO2 Offset',
+                    '${stats.co2Offset.toStringAsFixed(1)} kg',
+                    Icons.cloud_done_outlined,
+                    Colors.cyan)),
           ],
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                title: 'kg CO2',
-                endValue: 144,
-                subtitle: 'Total offset estimated',
-                progressText: '40% Target',
-                progressValue: 0.4,
-                color: _activeIconColor,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildStatCard(
-                title: '',
-                endValue: 80,
-                subtitle: 'Total GreenPoints',
-                progressText: '16%',
-                progressValue: 0.16,
-                color: _activeIconColor,
-              ),
-            ),
-          ],
-        ),
+        _buildImpactCard('GreenPoints Earned', stats.greenPoints.toString(),
+            Icons.stars_rounded, Colors.amber),
       ],
     );
   }
 
-  // --- WIDGET CARD THỐNG KÊ (CÓ ANIMATION SỐ NHẢY) ---
-  Widget _buildStatCard({
-    required String title,
-    required double endValue,
-    required String subtitle,
-    required String progressText,
-    required double progressValue,
-    required Color color,
-    bool isTextBottom = false,
-  }) {
+  // =========================================================
+  // WIDGET PHỤ TRỢ
+  // =========================================================
+
+  // Thẻ hiển thị Giờ (Dùng chung cho Total và Blacklist)
+  Widget _buildScreenTimeCard(
+      {required String title,
+      required double hours,
+      required double progress,
+      required IconData icon,
+      required Color color}) {
+    // Tính toán số giờ và phút để hiển thị cho đẹp
+    int h = hours.floor();
+    int m = ((hours - h) * 60).round();
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 5))
-        ],
-      ),
+          color: _cardColor, borderRadius: BorderRadius.circular(24)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // HIỆU ỨNG SỐ NHẢY TỪ 0 LÊN
-          TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: endValue),
-            duration:
-                const Duration(milliseconds: 1500), // Thời gian chạy (1.5s)
-            curve: Curves.easeOutCubic,
-            builder: (context, value, child) {
-              return Text.rich(
-                TextSpan(
-                  text: value.toInt().toString(),
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      height: 1),
-                  children: [
-                    TextSpan(
-                      text: title.isNotEmpty ? ' $title' : '',
-                      style: const TextStyle(fontSize: 20),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          Text(subtitle,
-              style: const TextStyle(color: Colors.black87, fontSize: 14)),
-          const SizedBox(height: 20),
-
-          if (isTextBottom)
-            Text(progressText, style: TextStyle(color: color, fontSize: 14))
-          else ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(progressText.split(' ')[0],
-                    style: const TextStyle(
-                        color: Colors.black87,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-                if (progressText.contains(' '))
-                  Text(progressText.substring(progressText.indexOf(' ') + 1),
-                      style:
-                          const TextStyle(color: Colors.black87, fontSize: 12)),
-              ],
-            ),
-            const SizedBox(height: 6),
-            // Thanh Progress Bar (Dùng LinearProgressIndicator)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progressValue,
-                backgroundColor: Colors.grey[200],
-                valueColor: AlwaysStoppedAnimation<Color>(color),
-                minHeight: 8,
-              ),
-            )
-          ]
-        ],
-      ),
-    );
-  }
-
-  // --- HIỆU ỨNG BOTTOM NAV BAR ---
-  Widget _buildCustomBottomNavBar() {
-    // Các Icon
-    final List<IconData> icons = [
-      Icons.home,
-      Icons.bar_chart,
-      Icons.settings,
-      Icons.person
-    ];
-
-    // Xác định vị trí của ô trắng dựa trên tab đang chọn (-1.0 là trái cùng, 1.0 là phải cùng)
-    // Chia 4 khoảng: -1.0 | -0.33 | 0.33 | 1.0
-    final double alignmentX = -1.0 + (_selectedIndex * (2.0 / 3.0));
-
-    return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF51B96B), // Màu nền thanh Nav
-        borderRadius: BorderRadius.circular(35), // Bo tròn cực mạnh
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))
-        ],
-      ),
-      child: Stack(
-        children: [
-          // Ô TRẮNG TRƯỢT THEO INDEX
-          AnimatedAlign(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            alignment: Alignment(alignmentX, 0),
-            child: Container(
-              width: 70, // Chiều rộng bằng khoảng 1 phần 4
-              height: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(25),
-              ),
-            ),
-          ),
-
-          // LỚP CHỨA CÁC ICON BẤM ĐƯỢC
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: List.generate(icons.length, (index) {
-              final isSelected = index == _selectedIndex;
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = index;
-                  });
-                },
-                // Vùng bấm trong suốt bao trọn icon
-                child: Container(
-                  width: 70,
-                  color: Colors.transparent,
-                  child: Center(
-                    // Icon sẽ tự đổi màu nếu được nằm trong ô trắng
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      child: Icon(
-                        icons[index],
-                        size: 32,
-                        color: isSelected ? _activeIconColor : Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
-          )
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Text(title,
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('$h',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      height: 1)),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6, left: 4, right: 8),
+                child: Text('h',
+                    style: TextStyle(color: Colors.white70, fontSize: 20)),
+              ),
+              Text('$m',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      height: 1)),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6, left: 4),
+                child: Text('m',
+                    style: TextStyle(color: Colors.white70, fontSize: 20)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Thanh Progress (Sẽ chuyển đỏ nếu vượt quá 100% mục tiêu)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress > 1.0 ? 1.0 : progress,
+              minHeight: 8,
+              backgroundColor: Colors.white10,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                  progress > 1.0 ? Colors.redAccent : color),
+            ),
+          ),
         ],
       ),
     );
   }
-}
 
-// Lớp vẽ mô phỏng lại đường Line Chart rực sáng màu xanh lá
-class _MockChartPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF57B869)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    path.moveTo(0, size.height * 0.8);
-    path.lineTo(size.width * 0.15, size.height * 0.8);
-    path.lineTo(size.width * 0.3, size.height * 0.4);
-    path.lineTo(size.width * 0.6, size.height * 0.4);
-    path.lineTo(size.width * 0.8, size.height * 0.1);
-    path.lineTo(size.width, size.height * 0.05);
-
-    // Thêm hiệu ứng phát sáng (Glow)
-    canvas.drawPath(
-        path,
-        Paint()
-          ..color = const Color(0xFF57B869).withOpacity(0.3)
-          ..strokeWidth = 12
-          ..style = PaintingStyle.stroke
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
-
-    canvas.drawPath(path, paint);
+  // Thẻ hiển thị Gamification (Cây, CO2, Điểm)
+  Widget _buildImpactCard(
+      String title, String value, IconData icon, Color iconColor) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          color: _cardColor, borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: iconColor, size: 32),
+          const SizedBox(height: 12),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(title,
+              style: const TextStyle(color: Colors.white54, fontSize: 14)),
+        ],
+      ),
+    );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  // UI khi có lỗi đồng bộ
+  Widget _buildErrorState(String error) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+          color: Colors.redAccent.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16)),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.redAccent),
+          const SizedBox(width: 12),
+          Expanded(
+              child:
+                  Text(error, style: const TextStyle(color: Colors.redAccent))),
+        ],
+      ),
+    );
+  }
 }

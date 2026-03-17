@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-// Nếu sau này bạn cần chuyển sang trang Register, hãy import thêm go_router:
-// import 'package:go_router/go_router.dart';
+import 'package:go_router/go_router.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -329,7 +328,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ? null
                         : () {
                             // TODO: Navigate to Register Screen
-                            // context.push('/register');
+                            context.push('/register');
                           },
                     child: Text(
                       'Sign Up',

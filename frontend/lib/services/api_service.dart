@@ -1,13 +1,34 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
 
 class ApiService {
   late final Dio _dio;
 
-  // Điền IP hoặc Domain của FastAPI server vào đây.
-  // Lưu ý: Nếu chạy máy ảo Android (Emulator) test localhost, dùng 'http://10.0.2.2:8000'
-  // Nếu dùng iOS Simulator, dùng 'http://127.0.0.1:8000'
-  final String _baseUrl = 'http://10.0.2.2:8000/api';
+  String get _baseUrl {
+    if (kReleaseMode) {
+      return 'https://api.screen2green.com/api/v1';
+    }
+
+    if (kIsWeb) {
+      return 'http://127.0.0.1:8000/api/v1';
+    }
+
+    try {
+      if (Platform.isAndroid) {
+        return 'http://10.0.2.2:8000/api/v1';
+      }
+
+      if (Platform.isIOS) {
+        return 'http://127.0.0.1:8000/api/v1';
+      }
+    } catch (e) {
+      debugPrint('Lỗi nhận diện nền tảng: $e');
+    }
+
+    return 'http://127.0.0.1:8000/api/v1';
+  }
 
   ApiService() {
     _dio = Dio(
@@ -40,7 +61,7 @@ class ApiService {
                 options.headers['Authorization'] = 'Bearer $token';
               }
             } catch (e) {
-              print('Lỗi khi lấy JWT Token gắn vào header: $e');
+              debugPrint('Lỗi khi lấy JWT Token gắn vào header: $e');
             }
           }
 
@@ -54,7 +75,7 @@ class ApiService {
         onError: (DioException e, handler) {
           // Xử lý lỗi chung toàn cục (Global Error Handling)
           if (e.response?.statusCode == 401) {
-            print('Lỗi 401: Token không hợp lệ hoặc đã hết hạn.');
+            debugPrint('Lỗi 401: Token không hợp lệ hoặc đã hết hạn.');
             // Có thể trigger logic đăng xuất hoặc thông báo cho user ở đây
           }
           return handler.next(e);

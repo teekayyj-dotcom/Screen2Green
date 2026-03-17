@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
+import 'package:flutter/foundation.dart';
 
 class ApiConfig {
   // Biến kReleaseMode tự động bằng true khi bạn build app để đẩy lên Store/Production
@@ -7,13 +8,13 @@ class ApiConfig {
   static const bool isProduction = kReleaseMode;
 
   // 1. URL Server Thật (Khi app đã được deploy lên Cloud, ví dụ: Render, AWS, GCP)
-  static const String _productionUrl = 'https://api.screen2green.com/api';
+  static const String _productionUrl = 'https://api.screen2green.com/api/v1';
 
   // 2. URL Môi trường Test (Localhost)
   // Android Emulator coi máy tính của bạn là 10.0.2.2
-  static const String _androidLocalUrl = 'http://10.0.2.2:8000/api';
+  static const String _androidLocalUrl = 'http://10.0.2.2:8000/api/v1';
   // iOS Simulator và Web dùng 127.0.0.1 hoặc localhost
-  static const String _iosLocalUrl = 'http://127.0.0.1:8000/api';
+  static const String _iosLocalUrl = 'http://127.0.0.1:8000/api/v1';
 
   // Hàm Get tự động trả về đúng Base URL
   static String get baseUrl {
@@ -35,7 +36,7 @@ class ApiConfig {
         return _iosLocalUrl;
       }
     } catch (e) {
-      print('Lỗi nhận diện nền tảng: $e');
+      debugPrint('Lỗi nhận diện nền tảng: $e');
     }
 
     // Mặc định an toàn

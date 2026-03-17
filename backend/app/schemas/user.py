@@ -14,7 +14,13 @@ class UserCreate(UserBase):
     password: Optional[str] = None  # Only if not using Firebase
 
 
-class UserUpdate(UserBase):
+class UserSyncRequest(BaseModel):
+    username: Optional[str] = None
+    email: Optional[str] = None
+    full_name: Optional[str] = None
+
+
+class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     username: Optional[str] = None
     email: Optional[str] = None

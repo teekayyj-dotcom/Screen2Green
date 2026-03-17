@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 // Import các file cấu hình, provider và router của bạn
 import 'firebase_options.dart'; // File này được tạo tự động bởi FlutterFire CLI
 import 'providers/auth_provider.dart';
+import 'providers/screen_provider.dart'; // <--- 1. THÊM DÒNG IMPORT NÀY
 import 'routes/app_router.dart';
 
 void main() async {
@@ -26,11 +27,14 @@ class Screen2GreenApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 4. Bọc toàn bộ app bằng MultiProvider
-    // Sau này bạn có thể dễ dàng thêm ScreenProvider, RewardProvider vào danh sách này
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AuthProvider>(
           create: (_) => AuthProvider(),
+        ),
+        // <--- 2. ĐĂNG KÝ THÊM SCREEN PROVIDER TẠI ĐÂY --->
+        ChangeNotifierProvider<ScreenProvider>(
+          create: (_) => ScreenProvider(),
         ),
       ],
       // 5. Dùng Builder để lấy context đã chứa AuthProvider truyền vào AppRouter

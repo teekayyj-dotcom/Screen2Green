@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 // Import Provider
@@ -17,8 +16,11 @@ class AppRouter {
   AppRouter(this.authProvider);
 
   late final GoRouter router = GoRouter(
+    // Lắng nghe sự thay đổi trạng thái từ AuthProvider
     refreshListenable: authProvider,
     initialLocation: '/',
+
+    // --- DANH SÁCH CÁC MÀN HÌNH ---
     routes: [
       GoRoute(
         path: '/',
@@ -30,7 +32,8 @@ class AppRouter {
       ),
       GoRoute(
         path: '/register',
-        builder: (context, state) => const RegisterScreen(),
+        builder: (context, state) =>
+            const RegisterScreen(), // Đã thêm màn hình Đăng ký
       ),
       GoRoute(
         path: '/welcome',
@@ -42,32 +45,33 @@ class AppRouter {
       ),
     ],
 
-    // --- BỘ ĐÁNH CHẶN (GUARD) ĐIỀU HƯỚNG THÔNG MINH ---
+    // --- BỘ ĐÁNH CHẶN (GUARD) ĐIỀU HƯỚNG ---
     redirect: (context, state) {
-      final bool isAuthenticated = authProvider.isAuthenticated;
-      final bool isLoading = authProvider.isLoading;
+      final isAuth = authProvider.isAuthenticated;
+      final isLoading = authProvider.isLoading;
+      final location = state.matchedLocation;
 
-      // Kiểm tra xem người dùng đang ở trang nào
-      final bool isAtSplash = state.matchedLocation == '/';
-      final bool isAtLogin = state.matchedLocation == '/login';
-      final bool isAtRegister = state.matchedLocation == '/register';
+      final isAtSplash = location == '/';
+      final isAtLogin = location == '/login';
+      final isAtRegister = location == '/register';
+      final isAtWelcome = location == '/welcome';
 
-      // 1. Nếu đang check Token -> Cho phép ở lại Splash
-      if (isLoading || isAtSplash) return null;
+      if (isLoading) {
+        return isAtSplash ? null : '/';
+      }
 
-      // 2. CHƯA ĐĂNG NHẬP
-      if (!isAuthenticated) {
-        // Cho phép ở lại Login hoặc Register
-        if (isAtLogin || isAtRegister) return null;
-        // Đang lảng vảng chỗ khác -> Đá về Login
+      if (!isAuth) {
+        if (isAtSplash || isAtLogin || isAtRegister) {
+          return null;
+        }
         return '/login';
       }
 
-      // 3. ĐÃ ĐĂNG NHẬP
-      if (isAuthenticated) {
-        // Nếu vừa đăng nhập/đăng ký thành công (đang ở login/register) -> Chuyển tới Welcome
-        if (isAtLogin || isAtRegister) return '/welcome';
-        // Cho phép ở lại Welcome hoặc Dashboard
+      if (isAtSplash || isAtLogin || isAtRegister) {
+        return '/welcome';
+      }
+
+      if (isAtWelcome) {
         return null;
       }
 

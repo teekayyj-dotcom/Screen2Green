@@ -1,10 +1,11 @@
 from fastapi import APIRouter
 
-from app.api.endpoints import auth, users, items, membership
+from app.api.endpoints import auth, users, items, membership, screentime
 
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(screentime.router, prefix="/screen-time", tags=["screen-time"])
 api_router.include_router(items.router, prefix="/items", tags=["items"])
 api_router.include_router(membership.router, prefix="/membership", tags=["membership"])

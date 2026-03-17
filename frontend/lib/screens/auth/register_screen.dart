@@ -11,54 +11,58 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Controllers
+  // Thêm 2 Controller mới
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _userNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  // Biến trạng thái
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
 
-  // Hằng số màu sắc (Đồng bộ với Login)
   final Color _backgroundColor = const Color(0xFF191A1F);
   final Color _inputFillColor = const Color(0xFF25262E);
   final Color _primaryGreen = const Color(0xFF57B869);
 
   @override
   void dispose() {
+    _fullNameController.dispose();
+    _userNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  // Hàm xử lý Đăng ký
   Future<void> _handleRegister() async {
+    final fullName = _fullNameController.text.trim();
+    final userName = _userNameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
-    // 1. Kiểm tra nhập liệu cơ bản
-    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    // 1. Validate kiểm tra trống
+    if (fullName.isEmpty ||
+        userName.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Vui lòng điền đầy đủ thông tin'),
-          backgroundColor: Colors.orange,
-        ),
+            content: Text('Vui lòng điền đầy đủ thông tin'),
+            backgroundColor: Colors.orange),
       );
       return;
     }
 
-    // 2. Kiểm tra mật khẩu xác nhận có khớp không
     if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Mật khẩu xác nhận không khớp!'),
-          backgroundColor: Colors.redAccent,
-        ),
+            content: Text('Mật khẩu xác nhận không khớp!'),
+            backgroundColor: Colors.redAccent),
       );
       return;
     }
@@ -68,19 +72,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      // 3. Gọi hàm Register từ AuthProvider
+      // 2. Truyền THÊM fullName và userName vào AuthProvider
       final authProvider = context.read<AuthProvider>();
-      await authProvider.register(email, password);
+      await authProvider.register(email, password, fullName, userName);
 
-      // Ghi chú: Firebase tự động đăng nhập luôn cho user sau khi tạo tài khoản thành công.
-      // Do đó, biến isAuthenticated sẽ thành true và Router tự động đá bạn vào Dashboard/Welcome!
+      // Thành công -> Router tự chuyển trang
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: Colors.redAccent,
-          ),
+              content: Text(e.toString().replaceAll('Exception: ', '')),
+              backgroundColor: Colors.redAccent),
         );
       }
     } finally {
@@ -97,7 +99,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       backgroundColor: _backgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 30.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -105,36 +107,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/images/logoscreen2green.png',
-                    height: 48,
-                    width: 48,
-                    fit: BoxFit.contain,
-                  ),
+                  Image.asset('assets/images/logoscreen2green.png',
+                      height: 40, width: 40),
                   const SizedBox(width: 12),
-                  const Text(
-                    'SCREEN2GREEN',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
+                  const Text('SCREEN2GREEN',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5)),
                 ],
               ),
-              const SizedBox(height: 50),
+              const SizedBox(height: 30),
 
-              // --- TITLE ---
-              const Text(
-                'Create an Account',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+              const Text('Create an Account',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold)),
+              const SizedBox(height: 30),
+
+              // --- Ô NHẬP FULL NAME ---
+              _buildTextField(
+                controller: _fullNameController,
+                hintText: 'Full Name (e.g. Rocky Doe)',
+                icon: Icons.badge_outlined,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 16),
+
+              // --- Ô NHẬP USERNAME ---
+              _buildTextField(
+                controller: _userNameController,
+                hintText: 'Username (e.g. rocky_99)',
+                icon: Icons.person_outline,
+              ),
+              const SizedBox(height: 16),
 
               // --- Ô NHẬP EMAIL ---
               _buildTextField(
@@ -143,7 +150,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
               // --- Ô NHẬP PASSWORD ---
               _buildPasswordField(
@@ -156,7 +163,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   });
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
               // --- Ô NHẬP CONFIRM PASSWORD ---
               _buildPasswordField(
@@ -179,89 +186,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed: _isLoading ? null : _handleRegister,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _primaryGreen,
-                    disabledBackgroundColor: _primaryGreen.withOpacity(0.5),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
+                        borderRadius: BorderRadius.circular(16)),
                   ),
                   child: _isLoading
                       ? const SizedBox(
                           height: 24,
                           width: 24,
                           child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2.5),
-                        )
-                      : const Text(
-                          'Sign Up',
+                              color: Colors.white, strokeWidth: 2.5))
+                      : const Text('Sign Up',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 30),
-
-              // --- ĐƯỜNG KẺ "OR CONTINUE WITH" ---
-              Row(
-                children: [
-                  const Expanded(
-                      child: Divider(color: Colors.white24, thickness: 1)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: const Text(
-                      'or continue with',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const Expanded(
-                      child: Divider(color: Colors.white24, thickness: 1)),
-                ],
-              ),
               const SizedBox(height: 24),
-
-              // --- NÚT SOCIAL ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildSocialButton(Icons.facebook, Colors.blue),
-                  const SizedBox(width: 20),
-                  _buildSocialButton(Icons.g_mobiledata, Colors.red,
-                      iconSize: 40),
-                  const SizedBox(width: 20),
-                  _buildSocialButton(Icons.apple, Colors.white),
-                ],
-              ),
-              const SizedBox(height: 40),
 
               // --- CHUYỂN VỀ TRANG LOGIN ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
-                    "Already have an account? ",
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
+                  const Text("Already have an account? ",
+                      style: TextStyle(color: Colors.white70, fontSize: 14)),
                   GestureDetector(
-                    onTap: _isLoading
-                        ? null
-                        : () {
-                            // Dùng pop để quay lại màn hình Login, tránh xếp chồng màn hình
-                            context.pop();
-                          },
-                    child: Text(
-                      'Sign In',
-                      style: TextStyle(
-                        color: _primaryGreen,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    onTap: _isLoading ? null : () => context.pop(),
+                    child: Text('Sign In',
+                        style: TextStyle(
+                            color: _primaryGreen,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -272,14 +227,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // --- CÁC HÀM UI PHỤ TRỢ GIÚP CODE GỌN GÀNG ---
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
+  // Các widget phụ trợ giữ nguyên như cũ
+  Widget _buildTextField(
+      {required TextEditingController controller,
+      required String hintText,
+      required IconData icon,
+      TextInputType keyboardType = TextInputType.text}) {
     return TextField(
       controller: controller,
       style: const TextStyle(color: Colors.white),
@@ -295,19 +248,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: _primaryGreen, width: 1.5),
-        ),
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: _primaryGreen, width: 1.5)),
       ),
     );
   }
 
-  Widget _buildPasswordField({
-    required TextEditingController controller,
-    required String hintText,
-    required bool obscureText,
-    required VoidCallback onToggleVisibility,
-  }) {
+  Widget _buildPasswordField(
+      {required TextEditingController controller,
+      required String hintText,
+      required bool obscureText,
+      required VoidCallback onToggleVisibility}) {
     return TextField(
       controller: controller,
       style: const TextStyle(color: Colors.white),
@@ -318,41 +269,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
         hintStyle: const TextStyle(color: Colors.white54),
         prefixIcon: const Icon(Icons.lock_outline, color: Colors.white),
         suffixIcon: IconButton(
-          icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility,
-              color: Colors.white54),
-          onPressed: onToggleVisibility,
-        ),
+            icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility,
+                color: Colors.white54),
+            onPressed: onToggleVisibility),
         filled: true,
         fillColor: _inputFillColor,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: _primaryGreen, width: 1.5),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide:
-              BorderSide(color: _primaryGreen.withOpacity(0.5), width: 1),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton(IconData icon, Color iconColor,
-      {double iconSize = 30}) {
-    return Container(
-      width: 64,
-      height: 64,
-      decoration: BoxDecoration(
-        color: _inputFillColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: IconButton(
-        icon: Icon(icon, color: iconColor, size: iconSize),
-        onPressed: _isLoading ? null : () {},
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: _primaryGreen, width: 1.5)),
       ),
     );
   }

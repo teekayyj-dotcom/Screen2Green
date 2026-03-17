@@ -27,9 +27,9 @@ class _SplashScreenState extends State<SplashScreen> {
     // Đọc trạng thái từ AuthProvider
     final authProvider = context.read<AuthProvider>();
 
-    // Nếu user đã đăng nhập -> vào Dashboard. Nếu chưa -> vào Login.
+    // Nếu user đã đăng nhập -> vào Welcome. Nếu chưa -> vào Login.
     if (authProvider.isAuthenticated) {
-      context.go('/dashboard');
+      context.go('/welcome');
     } else {
       context.go('/login');
     }

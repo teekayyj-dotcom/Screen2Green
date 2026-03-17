@@ -12,3 +12,4 @@ tensorflow>=2.15
 firebase-admin
 alembic
 mysqlclient
+google-play-scraper
