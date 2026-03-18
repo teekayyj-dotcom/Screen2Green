@@ -25,14 +25,21 @@ class User(Base, TimestampMixin):
     
     # Gamification & Rewards (Hệ thống điểm xanh)
     points = Column(Integer, default=0, nullable=False)  
-    membership_level = Column(String(50), default="silver", nullable=False) 
+    membership_level = Column(String(50), default="The Seed", nullable=False) 
     
     # ==========================================
     # QUAN HỆ VỚI CÁC BẢNG KHÁC (RELATIONSHIPS)
     # ==========================================
+    tree_planted = Column(Integer, default=0, nullable=False)  
     
     screentimes = relationship(
         "Screentime",
+        back_populates="owner",
+        cascade="all, delete-orphan"
+    )
+
+    trees = relationship(
+        "Tree",
         back_populates="owner",
         cascade="all, delete-orphan"
     )
