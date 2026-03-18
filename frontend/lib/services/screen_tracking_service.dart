@@ -1,16 +1,10 @@
 import 'package:usage_stats/usage_stats.dart';
 import '../models/screen_time_model.dart';
-// import 'api_service.dart'; // Mở comment khi có api_service
+// import 'package:dio/dio.dart';
+import 'api_service.dart';
 
 class ScreenTrackingService {
-  // Danh sách các package name của app Blacklist (Mạng xã hội, Game...)
-  // Bạn có thể thêm bớt tùy ý
-  final List<String> _blacklistPackages = [
-    'com.facebook.katana', // Facebook
-    'com.zhiliaoapp.musically', // TikTok
-    'com.instagram.android', // Instagram
-    'com.google.android.youtube', // YouTube
-  ];
+  final ApiService _apiService = ApiService();
 
   // ==========================================================
   // 1. LẤY VÀ PHÂN LOẠI DỮ LIỆU TỪ HỆ ĐIỀU HÀNH
@@ -24,63 +18,53 @@ class ScreenTrackingService {
           await UsageStats.queryUsageStats(startDate, endDate);
 
       double totalMillis = 0;
-      double blacklistMillis = 0;
+      List<AppUsageData> usedApps = []; // Raise a blank for app usage
 
       for (var info in usageStats) {
         if (info.packageName != null && info.totalTimeInForeground != null) {
           int timeInMillis = int.tryParse(info.totalTimeInForeground!) ?? 0;
 
-          // Cộng vào Tổng thời gian
-          totalMillis += timeInMillis;
+          if (timeInMillis > 0) {
+            totalMillis += timeInMillis;
 
-          // Nếu package nằm trong Blacklist -> Cộng thêm vào Blacklist
-          if (_blacklistPackages.contains(info.packageName)) {
-            blacklistMillis += timeInMillis;
+            int minutesUsed = timeInMillis ~/ 60000; //change millis to minutes
+
+            if (minutesUsed > 0) {
+              usedApps.add(AppUsageData(
+                  packageName: info.packageName!, minutes: minutesUsed));
+            }
           }
         }
       }
 
       return ScreenTimeSyncRequest(
         totalHours: totalMillis / (1000 * 60 * 60),
-        blacklistHours: blacklistMillis / (1000 * 60 * 60),
+        apps: usedApps,
       );
     } catch (e) {
-      return ScreenTimeSyncRequest(totalHours: 0, blacklistHours: 0);
+      return ScreenTimeSyncRequest(totalHours: 0, apps: []);
     }
   }
 
   // ==========================================================
-  // 2. GỌI API ĐỒNG BỘ (/api/v1/screen-time/sync)
+  // 2. GỌI API ĐỒNG BỘ VÀ NHẬN DỮ LIỆU TỪ FASTAPI
   // ==========================================================
   Future<DashboardStatsModel> syncAndGetDashboardData() async {
-    // 1. Quét dữ liệu máy
+    // 1. Quét dữ liệu máy (Thu thập mảng apps)
     ScreenTimeSyncRequest currentUsage = await getDailyUsageStats();
 
     try {
-      // ==========================================
-      // [KẾT NỐI VỚI BACKEND FASTAPI THỰC TẾ]
-      // final response = await apiService.post(
-      //   '/api/v1/screen-time/sync',
-      //   data: currentUsage.toJson(), // Gửi 2 biến total_hours và blacklist_hours
-      // );
-      // return DashboardStatsModel.fromJson(response.data);
-      // ==========================================
-
-      // --- MOCK DATA ĐỂ TEST UI TRONG LÚC CHỜ NỐI API ---
-      await Future.delayed(const Duration(seconds: 1));
-
-      return DashboardStatsModel(
-        totalHours: double.parse(currentUsage.totalHours.toStringAsFixed(1)),
-        blacklistHours:
-            double.parse(currentUsage.blacklistHours.toStringAsFixed(1)),
-        hoursProgress: currentUsage.totalHours / 5.0,
-        blacklistProgress: currentUsage.blacklistHours / 1.5, // Target 1.5h
-        totalTrees: 12,
-        co2Offset: 144.0,
-        greenPoints: 80,
-        todayUsage: [0.5, 1.2, 2.5, 3.0, currentUsage.totalHours],
-        todayBlacklistUsage: [0.2, 0.5, 1.0, 1.2, currentUsage.blacklistHours],
+      // 2. Ném toàn bộ cục dữ liệu lên cho FastAPI phân xử
+      // Lưu ý: Vì trong api_service.dart bạn đã cấu hình _baseUrl có sẵn '/api/v1',
+      // nên ở đây chỉ cần gọi endpoint '/screen-time/sync' là đủ.
+      final response = await _apiService.client.post(
+        '/screen-time/sync',
+        data: currentUsage.toJson(),
       );
+
+      // 3. FastAPI tính toán xong sẽ trả về cục JSON chuẩn xác.
+      // Hứng lấy và biến nó thành DashboardStatsModel!
+      return DashboardStatsModel.fromJson(response.data);
     } catch (e) {
       throw Exception("Lỗi đồng bộ dữ liệu: $e");
     }

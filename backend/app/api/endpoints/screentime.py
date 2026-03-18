@@ -10,6 +10,9 @@ from app.models.screentime import Screentime
 from app.schemas.screentime import ScreenTimeSyncRequest, ScreenTimeDashboardResponse
 from app.services.point_service import PointService
 
+# [MỚI] 1. Import Service phân loại App
+from app.services.app_categorizer import AppCategorizerService 
+
 router = APIRouter()
 
 @router.post("/sync", response_model=ScreenTimeDashboardResponse)
@@ -32,7 +35,13 @@ async def sync_screentime(
             detail="Người dùng chưa được đồng bộ. Hãy gọi /sync-user trước."
         )
 
-    # 2. Tìm hoặc Tạo bản ghi Screentime cho ngày hôm nay (Upsert)
+    # ==========================================
+    # [MỚI] 2. CHẠY BỘ LỌC CATEGORIZE APP
+    # ==========================================
+    # Gọi Service để quét mảng apps, tra cứu DB/Google Play và trả ra số giờ Blacklist chuẩn
+    calculated_blacklist_hours = AppCategorizerService.process_app_usages(db, request.apps)
+
+    # 3. Tìm hoặc Tạo bản ghi Screentime cho ngày hôm nay (Upsert)
     today = date.today()
     screentime_record = db.query(Screentime).filter(
         Screentime.user_id == user.id,
@@ -40,16 +49,18 @@ async def sync_screentime(
     ).first()
 
     if screentime_record:
-        # Nếu đã có data hôm nay -> Cập nhật (vì Flutter có thể gọi API nhiều lần/ngày)
+        # Nếu đã có data hôm nay -> Cập nhật
         screentime_record.total_hours = request.total_hours
-        screentime_record.blacklist_hours = request.blacklist_hours
+        # [MỚI] Dùng số giờ do Backend tự tính toán, thay vì con số của Flutter
+        screentime_record.blacklist_hours = calculated_blacklist_hours 
     else:
         # Nếu chưa có -> Tạo mới
         screentime_record = Screentime(
             user_id=user.id,
             record_date=today,
             total_hours=request.total_hours,
-            blacklist_hours=request.blacklist_hours
+            # [MỚI] Dùng số giờ do Backend tự tính toán
+            blacklist_hours=calculated_blacklist_hours 
         )
         db.add(screentime_record)
     
@@ -57,17 +68,17 @@ async def sync_screentime(
     db.commit()
     db.refresh(screentime_record)
 
-    # 3. Tính toán Gamification qua PointService
-    # Tính phần trăm Progress Bar
+    # 4. Tính toán Gamification qua PointService
+    # [MỚI] Thay thế toàn bộ request.blacklist_hours thành calculated_blacklist_hours
     total_progress, blacklist_progress = PointService.calculate_progress_bars(
         request.total_hours, 
-        request.blacklist_hours
+        calculated_blacklist_hours
     )
     
     # Tính điểm đạt được hôm nay
     daily_points = PointService.calculate_daily_points(
         request.total_hours, 
-        request.blacklist_hours
+        calculated_blacklist_hours
     )
     
     # LƯU Ý KỸ THUẬT: Vì API này gọi nhiều lần trong ngày, ta không cộng thẳng daily_points 
@@ -78,17 +89,17 @@ async def sync_screentime(
     # Tính Cây xanh và CO2 từ tổng điểm
     total_trees, co2_offset = PointService.calculate_environmental_impact(display_total_points)
 
-    # 4. Trả kết quả về cho Flutter (Khớp 100% với Schema)
+    # 5. Trả kết quả về cho Flutter (Khớp 100% với Schema)
     return ScreenTimeDashboardResponse(
         total_hours=request.total_hours,
-        blacklist_hours=request.blacklist_hours,
-        total_progress=total_progress,
+        # [MỚI] Trả về số giờ do Backend tự tính để Flutter cập nhật UI cho khớp
+        blacklist_hours=calculated_blacklist_hours, 
+        hours_progress=total_progress,
         blacklist_progress=blacklist_progress,
         total_trees=total_trees,
-        trees_this_month=0,  # Có thể nâng cấp logic query DB đếm số cây tháng này sau
+        trees_this_month=0,
         co2_offset=co2_offset,
         green_points=display_total_points,
-        # Trả về mảng rỗng hoặc giả lập để chart Flutter không bị lỗi null
         today_usage=[request.total_hours], 
-        today_blacklist_usage=[request.blacklist_hours] 
+        today_blacklist_usage=[calculated_blacklist_hours] # [MỚI] Cập nhật lại cho chart
     )

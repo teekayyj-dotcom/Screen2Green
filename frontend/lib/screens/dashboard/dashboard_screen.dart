@@ -212,7 +212,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         // --- THẺ BLACKLIST (MÔ HÌNH HYBRID MỚI) ---
         _buildScreenTimeCard(
-          title: 'Distracting Apps (Blacklist)',
+          title: 'Distracting Apps',
           hours: stats.blacklistHours,
           progress: stats.blacklistProgress,
           icon: Icons.block,

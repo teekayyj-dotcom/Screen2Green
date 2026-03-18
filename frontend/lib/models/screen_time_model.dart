@@ -1,19 +1,33 @@
 // ============================================================================
 // 1. DTO GỬI LÊN BACKEND (Khớp với ScreenTimeSyncRequest của FastAPI)
 // ============================================================================
+class AppUsageData {
+  final String packageName;
+  final int minutes;
+
+  AppUsageData({required this.packageName, required this.minutes});
+
+  Map<String, dynamic> toJson() {
+    return {
+      'package_name': packageName,
+      'minutes': minutes,
+    };
+  }
+}
+
 class ScreenTimeSyncRequest {
   final double totalHours;
-  final double blacklistHours;
+  final List<AppUsageData> apps;
 
   ScreenTimeSyncRequest({
     required this.totalHours,
-    required this.blacklistHours,
+    required this.apps,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'total_hours': totalHours,
-      'blacklist_hours': blacklistHours,
+      'apps': apps.map((app) => app.toJson()).toList(),
     };
   }
 }
@@ -53,7 +67,8 @@ class DashboardStatsModel {
     return DashboardStatsModel(
       totalHours: (json['total_hours'] ?? 0).toDouble(),
       blacklistHours: (json['blacklist_hours'] ?? 0).toDouble(),
-      hoursProgress: (json['hours_progress'] ?? 0).toDouble(),
+      hoursProgress:
+          (json['hours_progress'] ?? json['total_progress'] ?? 0).toDouble(),
       blacklistProgress: (json['blacklist_progress'] ?? 0).toDouble(),
       totalTrees: json['total_trees'] ?? 0,
       co2Offset: (json['co2_offset'] ?? 0).toDouble(),
